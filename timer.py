@@ -3,13 +3,13 @@ class Timer(object):
         self.delay: int = delay
         self.counter: int = 0
 
-    def completed(self, time: int):
+    def completed(self, time: int) -> bool:
         self.counter += time
         if self.counter >= self.delay:
             return True
         return False
 
-    def looped(self, time: int):
+    def looped(self, time: int) -> bool:
         self.counter += time
         if self.counter >= self.delay:
             self.counter = 0

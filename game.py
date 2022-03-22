@@ -1,9 +1,9 @@
 from pygame.sprite import collide_rect
-from pygame import Rect
+from pygame import Rect, Vector2
 from engine import GameState
 from controls import Input
 from renderer import Renderer
-from sprites import Ship, Letter
+from sprites import Ship, Letter, AlienGroup
 
 class LoadState(GameState):
     def __init__(self, renderer: Renderer) -> None:
@@ -28,6 +28,7 @@ class PlayState(GameState):
         self.screen = renderer.screen()
         self.boundary = Rect(9, 38, 205, 205)
         self.ship = Ship(self.boundary)
+        self.alien = AlienGroup(self.boundary, '1', Vector2(34, 68))
         self.player_one_score_label = Letter(Rect(8, 12, 64, 8), 'SCORE<1>')
         self.player_two_score_label = Letter(Rect(152, 12, 64, 8), 'SCORE<2>')
         self.player_one_score = Letter(Rect(24, 28, 40, 8), '')
@@ -37,10 +38,12 @@ class PlayState(GameState):
     def update(self, time: int, input: Input) -> None:
         self.ship.set_input(input)
         self.ship.update(time)
+        self.alien.update(time)
         self.player_one_score.set_text(self.ship.score())
 
     def draw(self, renderer: Renderer) -> None:
         self.ship.draw(renderer)
+        self.alien.draw(renderer)
         self.player_one_score.draw(renderer)
         self.player_one_score_label.draw(renderer)
         self.player_two_score_label.draw(renderer)

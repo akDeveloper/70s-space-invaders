@@ -1,9 +1,11 @@
+from nis import match
+from numpy import alen
 from pygame.sprite import Sprite
 from pygame import Rect, Vector2
 from pygame.surface import Surface
 from exceptions import MethodNotImplemented
 from renderer import Renderer
-from action import Frame
+from action import Frame, Action
 from controls import Input, State
 from timer import Timer
 
@@ -132,6 +134,123 @@ class Ship(GameObject):
             if bullet.is_alive() is False:
                 self.bullets.remove(bullet)
 
+class Alien(GameObject):
+    SPRITE = 0
+
+    def __init__(self, boundary: Rect, type: str, pos: Vector2, *groups) -> None:
+        self.boundary = boundary
+        self.speed = 2
+        self.dive = 8
+        self.__is_alive = True
+        self.action = self.__create_action(type, pos)
+        self.frame = self.action.next_frame()
+        self.dir = 1
+        self.rect = Rect(pos.x, pos.y, self.frame.collision.w, self.frame.collision.h)
+        self.walk_timer = Timer(400)
+        self.changed = False
+
+    def update(self, time: int) -> None:
+        if not self.walk_timer.looped(time):
+            return
+
+        vel = Vector2(0, 0)
+        if self.action.is_completed():
+            self.action.reset()
+        self.frame = self.action.next_frame()
+        vel.x += self.speed * self.dir
+
+        if self.rect.left + vel.x <= self.boundary.left:
+            #vel.x -= self.speed * self.dir
+            #self.dir = 1
+            #vel.y += self.dive
+            self.changed = True
+        elif self.rect.right + vel.x >= self.boundary.right:
+            #vel.x -= self.speed * self.dir
+            #self.dir = -1
+            #vel.y += self.dive
+            self.changed = True
+        else:
+            self.changed = False
+
+        self.rect.left += vel.x
+        self.rect.top += vel.y
+
+        self.frame.collision.left = self.rect.left
+        self.frame.collision.top = self.rect.top
+
+
+    def fire(self) -> None:
+        pass
+
+    def toggle(self) -> None:
+        self.dir = self.dir * -1
+        self.rect.top += self.dive
+        self.changed = False
+        self.frame.collision.left = self.rect.left
+        self.frame.collision.top = self.rect.top
+
+    def spawn(self) -> None:
+        self.__is_alive = True
+
+    def is_alive(self) -> bool:
+        return self.__is_alive
+
+    def collide(self, other: 'GameObject') -> bool:
+        return self.rect.colliderect(other.rect)
+
+    def draw(self, renderer: Renderer) -> None:
+        renderer.draw(self.SPRITE, self.frame.src, self.frame.collision)
+
+    def __create_action(self, type: str, pos: Vector2) -> Action:
+        if type == '1':
+            return Action([
+                Frame(Rect(pos.x, pos.y, 8, 8), Rect(5, 1, 8, 8), 1),
+                Frame(Rect(pos.x, pos.y, 8, 8), Rect(5, 11, 8, 8), 1)
+            ])
+        elif type == '2':
+            return Action([
+                Frame(Rect(pos.x, pos.y, 11, 8), Rect(22, 1, 11, 8), 6),
+                Frame(Rect(pos.x, pos.y, 11, 8), Rect(22, 11, 11, 8), 6)
+            ])
+        elif type == '3':
+            return Action([
+                Frame(Rect(pos.x, pos.y, 12, 8), Rect(39, 1, 12, 8), 6),
+                Frame(Rect(pos.x, pos.y, 12, 8), Rect(39, 11, 12, 8), 6)
+            ])
+
+class AlienGroup(GameObject):
+    def __init__(self, boundary: Rect, type: str, pos: Vector2, *groups) -> None:
+        self.aliens = []
+        for i in range(0, 11):
+            new_pos = Vector2(pos.x + (16 * i), pos.y)
+            self.aliens.append(Alien(boundary, type, new_pos))
+
+    def update(self, time: int) -> None:
+        for alien in self.aliens:
+            alien.update(time)
+
+        reached_boundaries = self.__has_reached_boundaries()
+        if reached_boundaries:
+            for alien in self.aliens:
+                alien.toggle()
+
+    def __has_reached_boundaries(self) -> bool:
+        for alien in self.aliens:
+            if alien.changed is True:
+                return True
+
+    def spawn(self) -> None:
+        self.__is_alive = True
+
+    def is_alive(self) -> bool:
+        return self.__is_alive
+
+    def collide(self, other: 'GameObject') -> bool:
+        return self.rect.colliderect(other.rect)
+
+    def draw(self, renderer: Renderer) -> None:
+        for alien in self.aliens:
+            alien.draw(renderer)
 class Letter(Sprite):
     SPRITE = 0
 

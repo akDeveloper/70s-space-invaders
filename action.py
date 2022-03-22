@@ -32,7 +32,7 @@ class Action(object):
             if self.index >= len(self.frames):
                 self.index = len(self.frames) - 1
         self.tick += 1
-        return frame
+        return self.frames[self.index]
 
     def reset(self) -> None:
         self.tick = 0
