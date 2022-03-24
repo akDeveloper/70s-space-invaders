@@ -1,3 +1,4 @@
+from re import L
 from pygame.sprite import Sprite
 from pygame import Rect, Vector2
 from pygame.surface import Surface
@@ -146,26 +147,22 @@ class Alien(GameObject):
         self.rect = Rect(pos.x, pos.y, self.frame.collision.w, self.frame.collision.h)
         self.walk_timer = Timer(400)
         self.changed = False
+        self.frame_index = 0
 
     def update(self, time: int) -> None:
         if not self.walk_timer.looped(time):
             return
 
+        self.frame_index = 1 if self.frame_index == 0 else 0
         vel = Vector2(0, 0)
         if self.action.is_completed():
             self.action.reset()
-        self.frame = self.action.next_frame()
+        self.frame = self.action.frames[self.frame_index]
         vel.x += self.speed * self.dir
 
         if self.rect.left + vel.x <= self.boundary.left:
-            #vel.x -= self.speed * self.dir
-            #self.dir = 1
-            #vel.y += self.dive
             self.changed = True
         elif self.rect.right + vel.x >= self.boundary.right:
-            #vel.x -= self.speed * self.dir
-            #self.dir = -1
-            #vel.y += self.dive
             self.changed = True
         else:
             self.changed = False
@@ -219,23 +216,27 @@ class Alien(GameObject):
 class AlienGroup(GameObject):
     def __init__(self, boundary: Rect, type: str, pos: Vector2, *groups) -> None:
         self.aliens = []
+        self.changed = False
         for i in range(0, 11):
             new_pos = Vector2(pos.x + (16 * i), pos.y)
             self.aliens.append(Alien(boundary, type, new_pos))
 
     def update(self, time: int) -> None:
+        self.changed = False
         for alien in self.aliens:
             alien.update(time)
 
-        reached_boundaries = self.__has_reached_boundaries()
-        if reached_boundaries:
-            for alien in self.aliens:
-                alien.toggle()
+        self.__has_reached_boundaries()
 
     def __has_reached_boundaries(self) -> bool:
         for alien in self.aliens:
             if alien.changed is True:
-                return True
+                self.changed = True
+                return
+
+    def toggle(self):
+        for alien in self.aliens:
+            alien.toggle()
 
     def spawn(self) -> None:
         self.__is_alive = True
@@ -249,6 +250,44 @@ class AlienGroup(GameObject):
     def draw(self, renderer: Renderer) -> None:
         for alien in self.aliens:
             alien.draw(renderer)
+
+
+class AllAliens(GameObject):
+    def __init__(self, boundary: Rect, *groups) -> None:
+        self.groups = []
+        self.groups.append(AlienGroup(boundary, '1', Vector2(34, 68)))
+        self.groups.append(AlienGroup(boundary, '2', Vector2(34, 83)))
+        self.groups.append(AlienGroup(boundary, '2', Vector2(34, 98)))
+        self.groups.append(AlienGroup(boundary, '3', Vector2(34, 113)))
+        self.groups.append(AlienGroup(boundary, '3', Vector2(34, 128)))
+
+    def update(self, time: int) -> None:
+        for group in self.groups:
+            group.update(time)
+
+        reached_boundaries = self.__has_reached_boundaries()
+        if reached_boundaries:
+            for group in self.groups:
+                group.toggle()
+
+    def __has_reached_boundaries(self) -> bool:
+        for group in self.groups:
+            if group.changed is True:
+                return True
+
+    def spawn(self) -> None:
+        self.__is_alive = True
+
+    def is_alive(self) -> bool:
+        return self.__is_alive
+
+    def collide(self, other: 'GameObject') -> bool:
+        return self.rect.colliderect(other.rect)
+
+    def draw(self, renderer: Renderer) -> None:
+        for group in self.groups:
+            group.draw(renderer)
+
 class Letter(Sprite):
     SPRITE = 0
 
