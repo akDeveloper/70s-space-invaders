@@ -150,47 +150,52 @@ class Alien(GameObject):
         self.frame = self.action.next_frame()
         self.dir = 1
         self.rect = Rect(pos.x, pos.y, self.frame.collision.w, self.frame.collision.h)
-        self.walk_timer = Timer(400)
+        self.walk_timer = 0
+        self.speed_delay = 1000
         self.changed = False
         self.frame_index = 0
         self.__explode = False
-        self.timer = None
+        self.__explode_timer = 0
 
     def update(self, time: int) -> None:
-        if not self.walk_timer.looped(time):
-            return
-
+        self.walk_timer += time
         if self.__is_alive is False:
             return
 
-        # When explotion time is passed, do not update sprite
-        if self.timer != None and self.timer.completed(time):
+        if self.__explode_timer >= 90:
             self.__is_alive = False
             self.__explode = False
+            self.__explode_timer = 0
             return
 
         if self.__explode is True:
+            self.__explode_timer += time
             self.frame_index = 2
-        else:
-            self.frame_index = 1 if self.frame_index == 0 else 0
+            self.frame = self.action.frames[self.frame_index]
+            self.frame.collision.topleft = self.rect.topleft
 
-        self.frame = self.action.frames[self.frame_index]
+        if not self.walk_timer > self.speed_delay:
+            return
+
+        self.walk_timer = 0
+        if self.__explode is False:
+            self.frame_index = 1 if self.frame_index == 0 else 0
+            self.frame = self.action.frames[self.frame_index]
 
         vel = Vector2(0, 0)
         vel.x += self.speed * self.dir
 
-        if self.rect.left + vel.x <= self.boundary.left:
+        self.changed = False
+
+        if self.rect.left + vel.x <= self.boundary.left \
+            or self.rect.right + vel.x >= self.boundary.right:
             self.changed = True
-        elif self.rect.right + vel.x >= self.boundary.right:
-            self.changed = True
-        else:
-            self.changed = False
 
         self.rect.left += vel.x
         self.rect.top += vel.y
 
-        self.frame.collision.left = self.rect.left
-        self.frame.collision.top = self.rect.top
+        for frame in self.action.frames:
+            frame.collision.topleft = self.rect.topleft
 
     def fire(self) -> None:
         pass
@@ -199,8 +204,7 @@ class Alien(GameObject):
         self.dir = self.dir * -1
         self.rect.top += self.dive
         self.changed = False
-        self.frame.collision.left = self.rect.left
-        self.frame.collision.top = self.rect.top
+        self.frame.collision.topleft = self.rect.topleft
 
     def spawn(self) -> None:
         self.__is_alive = True
@@ -213,9 +217,6 @@ class Alien(GameObject):
 
     def explode(self) -> None:
         self.__explode = True
-        self.timer = Timer(30)
-        self.frame = self.action.frames[2]
-        self.frame.collision.topleft = self.rect.topleft
 
     def collide(self, other: 'GameObject') -> bool:
         """  Never used """
@@ -303,6 +304,13 @@ class AlienGroup(GameObject):
         for alien in self.aliens:
             alien.draw(renderer)
 
+    def count(self) -> int:
+        return len(self.aliens)
+
+    def update_speed(self, delay: int) -> None:
+        for alien in self.aliens:
+            alien.speed_delay = delay
+
 
 class AllAliens(GameObject):
     def __init__(self, boundary: Rect, *groups) -> None:
@@ -321,6 +329,19 @@ class AllAliens(GameObject):
         if reached_boundaries:
             for group in self.groups:
                 group.toggle()
+
+        count = self.count()
+
+        if count < 45:
+            self.update_speed(700)
+        elif count < 35:
+            self.update_speed(200)
+        elif count < 25:
+            self.update_speed(100)
+        elif count < 15:
+            self.update_speed(50)
+        elif count < 5:
+            self.update_speed(10)
 
     def __has_reached_boundaries(self) -> bool:
         for group in self.groups:
@@ -341,6 +362,16 @@ class AllAliens(GameObject):
     def draw(self, renderer: Renderer) -> None:
         for group in self.groups:
             group.draw(renderer)
+
+    def update_speed(self, delay: int) -> None:
+        for group in self.groups:
+            group.update_speed(delay)
+
+    def count(self) -> int:
+        count = 0
+        for group in self.groups:
+            count += group.count()
+        return count
 
 class Letter(Sprite):
     SPRITE = 0
