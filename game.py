@@ -38,6 +38,8 @@ class PlayState(GameState):
     def update(self, time: int, input: Input) -> None:
         self.ship.set_input(input)
         self.ship.update(time)
+        self.__collide_aliens()
+        self.__collide_ship()
         self.aliens.update(time)
         self.player_one_score.set_text(self.ship.score())
 
@@ -49,6 +51,12 @@ class PlayState(GameState):
         self.player_two_score_label.draw(renderer)
         self.hi_score.draw(renderer)
         self.hi_score_label.draw(renderer)
+
+    def __collide_aliens(self) -> None:
+        self.aliens.collide(self.ship)
+
+    def __collide_ship(self) -> None:
+        pass
 
     def state(self) -> 'GameState':
         return self

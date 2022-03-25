@@ -22,7 +22,7 @@ class GameObject(Sprite):
         raise MethodNotImplemented("Implement `draw` method")
 
     def update(self, time: int) -> None:
-        raise MethodNotImplemented("Implement `UPDATE` method")
+        raise MethodNotImplemented("Implement `update` method")
 
 class ShipBullet(GameObject):
     SPRITE = 0
@@ -120,7 +120,11 @@ class Ship(GameObject):
         return self.__is_alive
 
     def collide(self, other: 'GameObject') -> bool:
-        return self.rect.colliderect(other.rect)
+        for bullet in self.bullets:
+            if bullet.rect.colliderect(other.rect):
+                self.bullets.remove(bullet)
+                self.__score += other.points()
+                return True
 
     def draw(self, renderer: Renderer) -> None:
         renderer.draw(self.SPRITE, self.frame.src, self.frame.collision)
@@ -141,6 +145,7 @@ class Alien(GameObject):
         self.speed = 2
         self.dive = 8
         self.__is_alive = True
+        self.type = type
         self.action = self.__create_action(type, pos)
         self.frame = self.action.next_frame()
         self.dir = 1
@@ -148,16 +153,30 @@ class Alien(GameObject):
         self.walk_timer = Timer(400)
         self.changed = False
         self.frame_index = 0
+        self.__explode = False
+        self.timer = None
 
     def update(self, time: int) -> None:
         if not self.walk_timer.looped(time):
             return
 
-        self.frame_index = 1 if self.frame_index == 0 else 0
-        vel = Vector2(0, 0)
-        if self.action.is_completed():
-            self.action.reset()
+        if self.__is_alive is False:
+            return
+
+        # When explotion time is passed, do not update sprite
+        if self.timer != None and self.timer.completed(time):
+            self.__is_alive = False
+            self.__explode = False
+            return
+
+        if self.__explode is True:
+            self.frame_index = 2
+        else:
+            self.frame_index = 1 if self.frame_index == 0 else 0
+
         self.frame = self.action.frames[self.frame_index]
+
+        vel = Vector2(0, 0)
         vel.x += self.speed * self.dir
 
         if self.rect.left + vel.x <= self.boundary.left:
@@ -172,7 +191,6 @@ class Alien(GameObject):
 
         self.frame.collision.left = self.rect.left
         self.frame.collision.top = self.rect.top
-
 
     def fire(self) -> None:
         pass
@@ -190,41 +208,71 @@ class Alien(GameObject):
     def is_alive(self) -> bool:
         return self.__is_alive
 
+    def is_exploding(self) -> bool:
+        return self.__explode
+
+    def explode(self) -> None:
+        self.__explode = True
+        self.timer = Timer(30)
+        self.frame = self.action.frames[2]
+        self.frame.collision.topleft = self.rect.topleft
+
     def collide(self, other: 'GameObject') -> bool:
+        """  Never used """
         return self.rect.colliderect(other.rect)
 
     def draw(self, renderer: Renderer) -> None:
         renderer.draw(self.SPRITE, self.frame.src, self.frame.collision)
 
+    def points(self) -> int:
+        if self.type == '1':
+            return 30
+        elif self.type == '2':
+            return 20
+        elif self.type == '3':
+            return 10
+        return 0
+
+
     def __create_action(self, type: str, pos: Vector2) -> Action:
         if type == '1':
             return Action([
                 Frame(Rect(pos.x, pos.y, 8, 8), Rect(5, 1, 8, 8), 1),
-                Frame(Rect(pos.x, pos.y, 8, 8), Rect(5, 11, 8, 8), 1)
+                Frame(Rect(pos.x, pos.y, 8, 8), Rect(5, 11, 8, 8), 1),
+                Frame(Rect(pos.x, pos.y, 8, 8), Rect(56, 1, 13, 8), 1)
             ])
         elif type == '2':
             return Action([
-                Frame(Rect(pos.x, pos.y, 11, 8), Rect(22, 1, 11, 8), 6),
-                Frame(Rect(pos.x, pos.y, 11, 8), Rect(22, 11, 11, 8), 6)
+                Frame(Rect(pos.x, pos.y, 11, 8), Rect(22, 1, 11, 8), 1),
+                Frame(Rect(pos.x, pos.y, 11, 8), Rect(22, 11, 11, 8), 1),
+                Frame(Rect(pos.x, pos.y, 11, 8), Rect(56, 1, 13, 8), 1)
             ])
         elif type == '3':
             return Action([
-                Frame(Rect(pos.x, pos.y, 12, 8), Rect(39, 1, 12, 8), 6),
-                Frame(Rect(pos.x, pos.y, 12, 8), Rect(39, 11, 12, 8), 6)
+                Frame(Rect(pos.x, pos.y, 12, 8), Rect(39, 1, 12, 8), 1),
+                Frame(Rect(pos.x, pos.y, 12, 8), Rect(39, 11, 12, 8), 1),
+                Frame(Rect(pos.x, pos.y, 12, 8), Rect(56, 1, 13, 8), 1)
             ])
 
 class AlienGroup(GameObject):
     def __init__(self, boundary: Rect, type: str, pos: Vector2, *groups) -> None:
         self.aliens = []
         self.changed = False
+        self.__to_remove = []
         for i in range(0, 11):
             new_pos = Vector2(pos.x + (16 * i), pos.y)
             self.aliens.append(Alien(boundary, type, new_pos))
 
     def update(self, time: int) -> None:
         self.changed = False
+
         for alien in self.aliens:
             alien.update(time)
+
+        for alien in self.__to_remove:
+            if alien.is_alive() is False:
+                self.__to_remove.remove(alien)
+                self.aliens.remove(alien)
 
         self.__has_reached_boundaries()
 
@@ -245,7 +293,11 @@ class AlienGroup(GameObject):
         return self.__is_alive
 
     def collide(self, other: 'GameObject') -> bool:
-        return self.rect.colliderect(other.rect)
+        for alien in self.aliens:
+            if alien.is_exploding() is False and other.collide(alien):
+                alien.explode()
+                self.__to_remove.append(alien)
+                return True
 
     def draw(self, renderer: Renderer) -> None:
         for alien in self.aliens:
@@ -256,10 +308,10 @@ class AllAliens(GameObject):
     def __init__(self, boundary: Rect, *groups) -> None:
         self.groups = []
         self.groups.append(AlienGroup(boundary, '1', Vector2(34, 68)))
-        self.groups.append(AlienGroup(boundary, '2', Vector2(34, 83)))
-        self.groups.append(AlienGroup(boundary, '2', Vector2(34, 98)))
-        self.groups.append(AlienGroup(boundary, '3', Vector2(34, 113)))
-        self.groups.append(AlienGroup(boundary, '3', Vector2(34, 128)))
+        self.groups.append(AlienGroup(boundary, '2', Vector2(33, 83)))
+        self.groups.append(AlienGroup(boundary, '2', Vector2(33, 98)))
+        self.groups.append(AlienGroup(boundary, '3', Vector2(32, 113)))
+        self.groups.append(AlienGroup(boundary, '3', Vector2(32, 128)))
 
     def update(self, time: int) -> None:
         for group in self.groups:
@@ -282,7 +334,9 @@ class AllAliens(GameObject):
         return self.__is_alive
 
     def collide(self, other: 'GameObject') -> bool:
-        return self.rect.colliderect(other.rect)
+        for group in self.groups:
+            if group.collide(other):
+                return True
 
     def draw(self, renderer: Renderer) -> None:
         for group in self.groups:
