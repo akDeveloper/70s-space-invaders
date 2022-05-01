@@ -1,10 +1,10 @@
 # Space Invaders Clone
 
 ## TODO
-- [] Implement bunkers.
-- [] Implement "mystery ship".
-- [] Implement shooting by aliens.
-- [] Display lives and credit.
+- [ ] Implement bunkers.
+- [ ] Implement "mystery ship".
+- [ ] Implement shooting by aliens.
+- [ ] Display lives and credit.
 
 ## Credits
 
